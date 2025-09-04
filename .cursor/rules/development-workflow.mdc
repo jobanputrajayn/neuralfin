@@ -1,0 +1,131 @@
+---
+description: Development workflow and best practices for the JAX GPT Stock Predictor
+---
+
+# Development Workflow
+
+## Container Environment Setup
+All development must be done inside the podman container `thirsty_allen`:
+```bash
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && [command]"
+```
+
+## Running the Complete Pipeline
+
+### 🚨 **DEVELOPMENT: Use Subset Pipeline**
+During development, **ALWAYS** use the subset pipeline to avoid long training times:
+
+```bash
+# Run subset pipeline for development (recommended)
+python run_complete_pipeline.py
+
+# Or use the shell script version:
+./run_complete_pipeline_subset.sh
+
+# The subset pipeline uses reduced parameters:
+# - Ticker count: 2 (instead of full dataset)
+# - Random trials: 1 (instead of 10+)
+# - Bayesian trials: 1 (instead of 10+)
+# - Fine-tune trials: 1 (instead of 10+)
+# - Epochs per trial: 2 (instead of 50+)
+# - Data period: 1y (instead of 5y+)
+```
+
+### Production Pipeline
+For production runs, use the full pipeline with all parameters:
+```bash
+# Subset pipeline (for development/testing)
+./run_complete_pipeline_subset.sh
+
+# Full pipeline (for production)
+./run_complete_pipeline.sh
+```
+
+### Pipeline Options
+```bash
+# Start from specific step
+python run_complete_pipeline.py --start-step 3
+
+# Run without confirmation
+python run_complete_pipeline.py --no-confirm
+
+# Run with verbose output
+python run_complete_pipeline.py --verbose
+```
+
+## Individual Component Development
+
+### Training Pipeline
+- Main training: `python -m src.scripts.main train`
+- Hyperparameter tuning: `python -m src.scripts.main hyperparameter-tune`
+- Extended training: `python run_extended_training.py`
+- Final training: `python run_final_training.py`
+
+### 🚨 Development vs Production
+```bash
+# Development (fast iteration)
+python run_hyperparameter_tuning.py --ticker-count 2 --random-trials 1 --bayesian-trials 1
+
+# Production (full training)
+python run_hyperparameter_tuning.py --ticker-count 50 --random-trials 10 --bayesian-trials 10
+```
+
+### Backtesting and Analysis
+- Backtesting: `python run_backtesting.py`
+- Results analysis: `python analyze_results.py`
+- Model evaluation: `python evaluate_model.py`
+
+## Key Development Files
+
+### Core Training Logic
+- [src/scripts/main_training.py](mdc:src/scripts/main_training.py) - Main training pipeline
+- [src/scripts/hyperparameter_tuner.py](mdc:src/scripts/hyperparameter_tuner.py) - Hyperparameter optimization
+- [src/training/training_functions.py](mdc:src/training/training_functions.py) - Training utilities
+- [src/training/checkpointing.py](mdc:src/training/checkpointing.py) - Model checkpointing
+
+### Data Processing
+- [src/data/stock_data.py](mdc:src/data/stock_data.py) - Stock data fetching and processing
+- [src/data/sequence_generator.py](mdc:src/data/sequence_generator.py) - Sequence generation for training
+
+### Model Implementation
+- [src/models/gpt_classifier.py](mdc:src/models/gpt_classifier.py) - GPT-style classifier
+- [src/models/backtesting.py](mdc:src/models/backtesting.py) - Backtesting implementation
+
+### Configuration
+- [src/config/hyperparameter_config.py](mdc:src/config/hyperparameter_config.py) - Hyperparameter configuration
+- [src/models/constants.py](mdc:src/models/constants.py) - Model constants
+
+## Monitoring and Debugging
+
+### TensorBoard Integration
+Start TensorBoard for training monitoring:
+```bash
+./start_tensorboard.sh
+```
+
+### GPU Optimization
+- [src/utils/gpu_utils.py](mdc:src/utils/gpu_utils.py) - GPU utilities and optimization
+- [src/scripts/gpu_optimization_demo.py](mdc:src/scripts/gpu_optimization_demo.py) - GPU optimization demo
+
+### System Monitoring
+- [src/utils/system_utils.py](mdc:src/utils/system_utils.py) - System monitoring utilities
+- [monitor_pipeline.sh](mdc:monitor_pipeline.sh) - Pipeline monitoring script
+
+## Testing and Validation
+- [test_batch_logging.py](mdc:test_batch_logging.py) - Batch logging tests
+- [test_checkpointing.py](mdc:test_checkpointing.py) - Checkpointing tests
+
+## Best Practices
+
+1. **🚨 Use subset pipeline for development**: Always use `run_complete_pipeline.py` during development to avoid long training times
+2. **Always run in container**: Use the podman container for all operations
+3. **Check prerequisites**: Each pipeline step checks for required previous outputs
+4. **Monitor GPU usage**: Use GPU utilities to optimize memory usage
+5. **Use checkpointing**: Models are automatically checkpointed during training
+6. **Validate results**: Use backtesting and analysis tools to validate performance
+7. **Document changes**: Update relevant documentation when modifying pipeline
+8. **Test with small data first**: Use reduced ticker count and epochs for quick iteration
+description:
+globs:
+alwaysApply: false
+---

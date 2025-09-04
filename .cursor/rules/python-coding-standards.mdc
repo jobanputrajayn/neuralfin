@@ -1,0 +1,350 @@
+# Python Coding Standards
+
+## JAX and NNX-Specific Conventions
+
+### Import Order
+```python
+# Standard library imports
+import os
+import sys
+import json
+from pathlib import Path
+from typing import List, Optional, Dict, Any, Tuple
+
+# Third-party imports (JAX ecosystem first)
+import jax
+import jax.numpy as jnp
+import jax.lax
+from flax import nnx
+from flax.nnx import Param, BatchStat, State, split, merge, update
+from flax.nnx import softmax, one_hot, TrainState, Optimizer, jit, value_and_grad, scan, Any, OfType
+from flax.nnx import gelu
+import optax
+import numpy as np
+import pandas as pd
+
+# Local imports
+from src.models.gpt_classifier import GPTClassifier
+from src.data.stock_data import StockDataProcessor
+```
+
+### NNX Best Practices
+- Use `nnx.Module` for model definitions with automatic parameter management
+- Use `nnx.Rngs` for reproducible random operations
+- Apply `@jit` decorator to performance-critical functions (from flax.nnx)
+- Use `nnx.split()` and `nnx.merge()` for parameter/state management
+- Prefer NNX's functional patterns over traditional OOP for JAX functions
+
+### Memory Management
+```python
+# Set JAX memory fraction to prevent OOM
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.7'
+
+# Configure TensorFlow to use CPU only (prevents conflicts)
+import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
+
+# NNX-specific memory optimization
+# Use split/merge for efficient parameter management
+params, state = nnx.split(model)
+updated_model = nnx.merge(params, state)
+```
+
+## Code Structure
+
+### Function Documentation
+```python
+def train_model(
+    model: nnx.Module,
+    train_data: jnp.ndarray,
+    epochs: int,
+    learning_rate: float = 1e-4
+) -> Dict[str, Any]:
+    """
+    Train the GPT classifier model using NNX.
+    
+    Args:
+        model: The GPTClassifier model (NNX module)
+        train_data: Training data array of shape (batch_size, sequence_length, features)
+        epochs: Number of training epochs
+        learning_rate: Learning rate for optimization
+        
+    Returns:
+        Dictionary containing training metrics and final model state
+    """
+```
+
+### Error Handling
+```python
+def safe_model_training(model: nnx.Module, data):
+    """Safe model training with proper error handling for NNX models."""
+    try:
+        return train_model(model, data)
+    except jax.errors.JAXTypeError as e:
+        print(f"JAX type error: {e}")
+        return None
+    except MemoryError:
+        print("GPU memory exhausted, trying with smaller batch size")
+        return train_with_reduced_batch(model, data)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return None
+```
+
+### Configuration Management
+```python
+# Use dataclasses for configuration
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class TrainingConfig:
+    batch_size: int = 32
+    learning_rate: float = 1e-4
+    epochs: int = 100
+    sequence_length: int = 50
+    hidden_size: int = 256
+    num_layers: int = 6
+    dropout_rate: float = 0.1
+    num_attention_heads: int = 8
+    feedforward_dim: int = 1024
+    num_classes: int = 3
+```
+
+## Performance Optimization
+
+### NNX JIT Compilation
+```python
+@jit
+def compute_loss(model: nnx.Module, batch):
+    """JIT-compiled loss computation using NNX."""
+    logits = model(batch['inputs'])
+    return focal_loss(logits, batch['targets'], batch['alpha_weights'])
+
+@jit
+def train_step(model: nnx.Module, batch, alpha_weights, **kwargs):
+    """JIT-compiled training step using NNX."""
+    def loss_fn(model, logits):
+        return focal_loss(logits, batch[1], alpha_weights)
+    
+    # Compute loss and gradients using NNX pattern
+    grad_fn = value_and_grad(loss_fn, has_aux=True)
+    (loss, logits), grads = grad_fn(model, model(batch[0]))
+    
+    # Update model using NNX optimizer
+    optimizer = Optimizer(model, optax.adam(model.learning_rate))
+    updated_model = optimizer.update(grads)
+    
+    return updated_model, loss
+```
+
+### Batch Processing
+```python
+def create_batches(data, batch_size):
+    """Create batches for efficient training."""
+    num_batches = len(data) // batch_size
+    return [data[i * batch_size:(i + 1) * batch_size] 
+            for i in range(num_batches)]
+
+def create_nnx_batch(x, y_true, actual_returns, padding_mask):
+    """Create NNX-compatible batch tuple."""
+    return (x, y_true, actual_returns, padding_mask)
+```
+
+## Logging and Monitoring
+
+### Rich Terminal Output
+```python
+from rich.console import Console
+from rich.progress import Progress
+from rich.table import Table
+
+console = Console()
+
+def log_training_progress(epoch, loss, accuracy):
+    """Log training progress with rich formatting."""
+    console.print(f"[green]Epoch {epoch}[/green]: "
+                 f"Loss: [red]{loss:.4f}[/red], "
+                 f"Accuracy: [blue]{accuracy:.2%}[/blue]")
+```
+
+### TensorBoard Integration
+```python
+import tensorflow as tf
+
+def log_metrics(writer, step, metrics):
+    """Log metrics to TensorBoard."""
+    with writer.as_default():
+        for name, value in metrics.items():
+            tf.summary.scalar(name, value, step=step)
+    writer.flush()
+```
+
+## Testing Patterns
+
+### NNX Testing
+```python
+import jax.testing as jtest
+
+def test_nnx_model_forward():
+    """Test NNX model forward pass."""
+    rngs = nnx.Rngs(42)
+    model = GPTClassifier(
+        num_transformer_layers=2,
+        embedding_dim=256,
+        num_attention_heads=8,
+        feedforward_dim=1024,
+        input_features=5,
+        rngs=rngs
+    )
+    
+    batch = jnp.ones((2, 10, 5))  # (batch_size, seq_len, features)
+    padding_mask = jnp.ones((2,), dtype=jnp.bool_)
+    
+    # Test that output has expected shape
+    output = model(batch, padding_mask=padding_mask)
+    assert output.shape == (2, 5, 3)  # (batch_size, num_features, num_classes)
+    
+    # Test that gradients can be computed
+    def loss_fn(model, batch):
+        logits = model(batch[0], padding_mask=batch[3])
+        return jnp.mean(logits)
+    
+    grads = value_and_grad(loss_fn)(model, (batch, None, None, padding_mask))
+    assert grads is not None
+```
+
+## File Organization
+
+### Module Structure
+```
+src/
+├── models/
+│   ├── __init__.py
+│   ├── gpt_classifier.py      # NNX GPT model implementation
+│   ├── backtesting.py         # Backtesting logic
+│   └── constants.py           # Model constants
+├── training/
+│   ├── __init__.py
+│   ├── training_functions.py  # NNX training utilities
+│   └── checkpointing.py       # NNX model checkpointing
+└── utils/
+    ├── __init__.py
+    ├── gpu_utils.py           # GPU optimization
+    └── system_utils.py        # System monitoring
+```
+
+### Import Organization
+- Keep related functionality in the same module
+- Use `__init__.py` files to expose public APIs
+- Avoid circular imports between modules
+- Use relative imports within the `src` package
+
+## NNX Model Patterns
+
+### Model Definition
+```python
+class GPTClassifier(nnx.Module):
+    """GPT-like classifier for stock prediction (NNX version)."""
+    
+    def __init__(self, config, rngs: nnx.Rngs = None):
+        super().__init__()
+        self.rngs = rngs if rngs is not None else nnx.Rngs(0)
+        
+        # Define layers with NNX
+        self.input_projection = nnx.Linear(input_features, embedding_dim, rngs=self.rngs)
+        self.transformer_blocks = [
+            TransformerBlock(embedding_dim, num_heads, feedforward_dim, dropout_rate, rngs=self.rngs)
+            for _ in range(num_layers)
+        ]
+        self.output_projection = nnx.Linear(embedding_dim, num_classes, rngs=self.rngs)
+    
+    def __call__(self, x, padding_mask=None):
+        """Forward pass with NNX."""
+        x = self.input_projection(x)
+        for block in self.transformer_blocks:
+            x = block(x)
+        return self.output_projection(x)
+```
+
+### Training Mode Management
+```python
+def train(self):
+    """Set model to training mode."""
+    self._training = True
+    # Set dropout layers to training mode
+    for block in self.transformer_blocks:
+        block.dropout.train()
+        block.attention.train()
+
+def eval(self):
+    """Set model to evaluation mode."""
+    self._training = False
+    # Set dropout layers to evaluation mode
+    for block in self.transformer_blocks:
+        block.dropout.eval()
+        block.attention.eval()
+```
+
+### Parameter Management
+```python
+# Split parameters and state
+params, state = nnx.split(model)
+
+# Merge parameters and state
+updated_model = nnx.merge(params, state)
+
+# Update specific parameters
+updated_params = nnx.update(params, {'layer.weight': new_weight})
+```
+
+### JIT Compilation Best Practices
+```python
+# Use @jit for performance-critical functions
+@jit
+def train_step(model: nnx.Module, batch, alpha_weights):
+    """JIT-compiled training step."""
+    def loss_fn(model, logits):
+        return focal_loss(logits, batch[1], alpha_weights)
+    
+    # Forward pass
+    logits = model(batch[0])
+    
+    # Compute gradients
+    grad_fn = value_and_grad(loss_fn, has_aux=True)
+    (loss, _), grads = grad_fn(model, logits)
+    
+    # Update model
+    optimizer = Optimizer(model, optax.adam(model.learning_rate))
+    updated_model = optimizer.update(grads)
+    
+    return updated_model, loss
+
+# Use scan for loops in JIT-compiled functions
+@jit
+def process_sequence(model, sequence):
+    """Process sequence using scan."""
+    def body_fn(carry, x):
+        return model(x), None
+    
+    final_state, _ = scan(body_fn, init=model, xs=sequence)
+    return final_state
+```
+
+### Random Number Generation
+```python
+# Use NNX Rngs for reproducible randomness
+rngs = nnx.Rngs(42)
+
+# Pass Rngs to modules that need randomness
+model = GPTClassifier(config, rngs=rngs)
+
+# Split Rngs for different components
+rngs = nnx.Rngs(42)
+dropout_rngs = rngs.split(1)
+attention_rngs = rngs.split(1)
+```
+---
+globs: *.py
+description: Python coding standards and conventions for the JAX GPT Stock Predictor project
+---

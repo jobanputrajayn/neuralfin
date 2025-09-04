@@ -1,0 +1,208 @@
+---
+description: Container environment setup and podman usage for the JAX GPT Stock Predictor
+---
+
+# Container Environment
+
+## Podman Container Setup
+
+### Container Information
+- **Container Name**: `thirsty_allen`
+- **Working Directory**: `/mnt/d/collab/hyper`
+- **Host Path**: `D:\collab\hyper`
+- **Container Path**: `/mnt/d/collab/hyper`
+
+### Basic Container Commands
+```bash
+# Enter the container
+podman exec -it thirsty_allen bash
+
+# Run a single command in container
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && [command]"
+
+# Check container status
+podman ps
+
+# View container logs
+podman logs thirsty_allen
+```
+
+## Development Workflow in Container
+
+### Running Python Scripts
+```bash
+# Run complete pipeline
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && python run_complete_pipeline.py"
+
+# Run individual components
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && python -m src.scripts.main train"
+
+# Run with specific parameters
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && python run_hyperparameter_tuning.py --ticker-count 5"
+```
+
+### File System Access
+- Host files are mounted at `/mnt/d/collab/hyper` in the container
+- Changes made in the container are immediately reflected on the host
+- Use absolute paths within the container: `/mnt/d/collab/hyper/[file]`
+
+### GPU Access in Container
+```bash
+# Check GPU availability
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && nvidia-smi"
+
+# Monitor GPU usage during training
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && watch -n 1 nvidia-smi"
+```
+
+## Environment Variables
+
+### JAX Configuration
+```bash
+# Set JAX memory fraction (run inside container)
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.7
+
+# Set TensorFlow to CPU only (prevents conflicts)
+export CUDA_VISIBLE_DEVICES=""
+```
+
+### Python Path Configuration
+```bash
+# Add project to Python path
+export PYTHONPATH="/mnt/d/collab/hyper:$PYTHONPATH"
+```
+
+## Package Management
+
+### Installing Dependencies
+```bash
+# Install requirements in container
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && pip install -r requirements.txt"
+
+# Install GPU-specific requirements
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && pip install -r requirements-gpu.txt"
+```
+
+### Updating Dependencies
+```bash
+# Update specific package
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && pip install --upgrade jax"
+
+# Update all requirements
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && pip install --upgrade -r requirements.txt"
+```
+
+## Monitoring and Debugging
+
+### Container Resource Usage
+```bash
+# Monitor container resource usage
+podman stats thirsty_allen
+
+# Check container processes
+podman exec -it thirsty_allen bash -c "ps aux"
+```
+
+### Logging and Output
+```bash
+# View real-time logs
+podman logs -f thirsty_allen
+
+# Run with verbose output
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && python run_complete_pipeline.py --verbose"
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Container Not Starting
+```bash
+# Check if container exists
+podman ps -a | grep thirsty_allen
+
+# Start container if stopped
+podman start thirsty_allen
+
+# Recreate container if needed
+podman rm thirsty_allen
+podman run --name thirsty_allen [image] [command]
+```
+
+#### GPU Not Available
+```bash
+# Check GPU drivers
+podman exec -it thirsty_allen bash -c "nvidia-smi"
+
+# Check JAX GPU detection
+podman exec -it thirsty_allen bash -c "python -c 'import jax; print(jax.devices())'"
+```
+
+#### Memory Issues
+```bash
+# Check memory usage
+podman exec -it thirsty_allen bash -c "free -h"
+
+# Reduce JAX memory fraction
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.5
+```
+
+### Performance Optimization
+
+#### Container Resource Limits
+```bash
+# Run with specific resource limits
+podman run --name thirsty_allen \
+  --memory=8g \
+  --cpus=4 \
+  --gpus=all \
+  [image] [command]
+```
+
+#### JAX Performance Tuning
+```bash
+# Set JAX compilation cache
+export XLA_FLAGS="--xla_gpu_enable_triton_softmax_fusion=true"
+
+# Enable JAX profiling
+export JAX_PROFILER_PORT=9999
+```
+
+## Development Tools
+
+### VS Code Integration
+- Use VS Code's Remote Development extension
+- Connect to the container for direct development
+- Set up debugging configurations for container environment
+
+### TensorBoard in Container
+```bash
+# Start TensorBoard
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && tensorboard --logdir=./logs --host=0.0.0.0 --port=6006"
+
+# Access TensorBoard from host
+# Open browser to: http://localhost:6006
+```
+
+### Jupyter Notebook Support
+```bash
+# Install Jupyter in container
+podman exec -it thirsty_allen bash -c "pip install jupyter"
+
+# Start Jupyter server
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root"
+```
+
+## Best Practices
+
+1. **Always use container**: Never run commands directly on host
+2. **Check working directory**: Always `cd /mnt/d/collab/hyper` first
+3. **Monitor resources**: Use `podman stats` to monitor container performance
+4. **Use absolute paths**: Reference files with full container paths
+5. **Backup important data**: Container can be recreated, but mounted data persists
+6. **Log everything**: Use proper logging for debugging container issues
+7. **Version control**: Keep container configuration in version control
+description:
+globs:
+alwaysApply: false
+---

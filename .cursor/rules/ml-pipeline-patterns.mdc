@@ -1,0 +1,304 @@
+---
+description: Machine learning pipeline patterns and best practices for the JAX GPT Stock Predictor
+---
+
+# ML Pipeline Patterns
+
+## Pipeline Architecture
+
+### 6-Step Complete Pipeline
+The main pipeline in [run_complete_pipeline.py](mdc:run_complete_pipeline.py) follows this pattern:
+
+1. **Hyperparameter Tuning** - Find optimal model parameters
+2. **Extended Training** - Train with cross-validation on best configs
+3. **Results Analysis** - Analyze and select best configuration
+4. **Final Model Training** - Train final model with best config
+5. **Backtesting** - Evaluate model performance
+6. **Signal Generation** - Generate trading signals
+
+### Pipeline Step Pattern
+```python
+def run_step_X() -> int:
+    """Run step X with proper error handling and validation."""
+    print_step("X: Step Description")
+    
+    # Check prerequisites
+    if not check_prerequisites():
+        print_error("Prerequisites not met")
+        return 1
+    
+    # Run the step
+    return_code = run_python_script("script_name.py", args)
+    check_previous_step(return_code)
+    
+    # Validate outputs
+    if not validate_outputs():
+        print_error("Step outputs invalid")
+        return 1
+    
+    print_success("Step X completed")
+    return return_code
+```
+
+## Data Flow Patterns
+
+### Stock Data Processing
+```python
+# Data fetching pattern
+def fetch_stock_data(tickers: List[str], period: str) -> pd.DataFrame:
+    """Fetch and preprocess stock data."""
+    data = {}
+    for ticker in tickers:
+        stock = yf.Ticker(ticker)
+        data[ticker] = stock.history(period=period)
+    return pd.DataFrame(data)
+
+# Sequence generation pattern
+def create_sequences(data: pd.DataFrame, sequence_length: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Create training sequences from time series data."""
+    sequences = []
+    targets = []
+    
+    for i in range(len(data) - sequence_length):
+        sequence = data.iloc[i:i + sequence_length].values
+        target = data.iloc[i + sequence_length]['target']
+        sequences.append(sequence)
+        targets.append(target)
+    
+    return jnp.array(sequences), jnp.array(targets)
+```
+
+### Model Training Pattern
+```python
+def train_with_checkpointing(model, train_data, config):
+    """Train model with automatic checkpointing."""
+    # Initialize checkpoint manager
+    checkpoint_manager = create_checkpoint_manager()
+    
+    # Training loop
+    for epoch in range(config.epochs):
+        # Train one epoch
+        metrics = train_epoch(model, train_data, config)
+        
+        # Log metrics
+        log_metrics(epoch, metrics)
+        
+        # Save checkpoint
+        if epoch % config.checkpoint_frequency == 0:
+            checkpoint_manager.save(epoch, model.state)
+        
+        # Early stopping check
+        if should_stop_early(metrics):
+            break
+    
+    return model, metrics
+```
+
+## Hyperparameter Optimization Pattern
+
+### Optuna Integration
+```python
+def objective(trial):
+    """Optuna objective function for hyperparameter optimization."""
+    # Suggest hyperparameters
+    config = {
+        'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-3, log=True),
+        'batch_size': trial.suggest_categorical('batch_size', [16, 32, 64]),
+        'hidden_size': trial.suggest_categorical('hidden_size', [128, 256, 512]),
+        'num_layers': trial.suggest_int('num_layers', 2, 8),
+        'dropout_rate': trial.suggest_float('dropout_rate', 0.1, 0.5),
+    }
+    
+    # Train and evaluate
+    model = create_model(config)
+    metrics = train_and_evaluate(model, train_data, val_data)
+    
+    return metrics['validation_accuracy']
+
+def run_hyperparameter_optimization():
+    """Run hyperparameter optimization with Optuna."""
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=100)
+    
+    # Save best configuration
+    best_config = study.best_params
+    save_config(best_config, 'best_config.json')
+    
+    return study
+```
+
+## Model Evaluation Pattern
+
+### Cross-Validation
+```python
+def cross_validate_model(config, data, n_folds=5):
+    """Perform cross-validation on model configuration."""
+    fold_scores = []
+    
+    for fold in range(n_folds):
+        # Split data
+        train_data, val_data = split_data_fold(data, fold, n_folds)
+        
+        # Train model
+        model = create_model(config)
+        model, metrics = train_model(model, train_data, config)
+        
+        # Evaluate
+        val_score = evaluate_model(model, val_data)
+        fold_scores.append(val_score)
+    
+    return {
+        'mean_score': np.mean(fold_scores),
+        'std_score': np.std(fold_scores),
+        'fold_scores': fold_scores
+    }
+```
+
+### Backtesting Pattern
+```python
+def backtest_model(model, test_data):
+    """Perform backtesting on trained model."""
+    predictions = []
+    actual_returns = []
+    
+    for i in range(len(test_data) - 1):
+        # Get prediction
+        input_sequence = test_data[i:i+1]
+        prediction = model.predict(input_sequence)
+        
+        # Calculate actual return
+        actual_return = calculate_return(test_data[i+1])
+        
+        predictions.append(prediction)
+        actual_returns.append(actual_return)
+    
+    # Calculate performance metrics
+    metrics = calculate_performance_metrics(predictions, actual_returns)
+    return metrics
+```
+
+## Configuration Management Pattern
+
+### Configuration Classes
+```python
+@dataclass
+class ModelConfig:
+    """Model configuration with validation."""
+    sequence_length: int
+    hidden_size: int
+    num_layers: int
+    dropout_rate: float
+    
+    def __post_init__(self):
+        """Validate configuration parameters."""
+        assert 0 < self.sequence_length <= 1000
+        assert self.hidden_size > 0
+        assert 1 <= self.num_layers <= 20
+        assert 0 <= self.dropout_rate <= 1
+
+@dataclass
+class TrainingConfig:
+    """Training configuration."""
+    batch_size: int
+    learning_rate: float
+    epochs: int
+    checkpoint_frequency: int = 10
+    
+    def __post_init__(self):
+        assert self.batch_size > 0
+        assert self.learning_rate > 0
+        assert self.epochs > 0
+```
+
+### Configuration Loading/Saving
+```python
+def load_config(config_path: str) -> Dict[str, Any]:
+    """Load configuration from JSON file."""
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def save_config(config: Dict[str, Any], config_path: str):
+    """Save configuration to JSON file."""
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+```
+
+## Error Handling and Recovery
+
+### Pipeline Error Recovery
+```python
+def run_pipeline_with_recovery():
+    """Run pipeline with automatic error recovery."""
+    for step in range(1, 7):
+        try:
+            result = run_step(step)
+            if result != 0:
+                print_error(f"Step {step} failed")
+                # Try to recover or skip to next step
+                if not can_recover_from_step(step):
+                    break
+        except Exception as e:
+            print_error(f"Step {step} crashed: {e}")
+            # Log error and continue if possible
+            log_error(step, e)
+```
+
+### Model Checkpointing
+```python
+def create_checkpoint_manager(checkpoint_dir: str):
+    """Create checkpoint manager for model state."""
+    return orbax.checkpoint.CheckpointManager(
+        checkpoint_dir,
+        options=orbax.checkpoint.CheckpointManagerOptions(
+            max_to_keep=5,
+            create=True
+        )
+    )
+
+def load_latest_checkpoint(checkpoint_manager, model):
+    """Load the latest checkpoint if available."""
+    latest_step = checkpoint_manager.latest_step()
+    if latest_step is not None:
+        model.state = checkpoint_manager.restore(latest_step)
+        return latest_step
+    return None
+```
+
+## Monitoring and Logging
+
+### Training Monitoring
+```python
+def setup_tensorboard_logging(log_dir: str):
+    """Setup TensorBoard logging."""
+    return tf.summary.create_file_writer(log_dir)
+
+def log_training_metrics(writer, step, metrics):
+    """Log training metrics to TensorBoard."""
+    with writer.as_default():
+        for name, value in metrics.items():
+            tf.summary.scalar(name, value, step=step)
+    writer.flush()
+```
+
+### Progress Tracking
+```python
+def track_pipeline_progress(total_steps: int):
+    """Track pipeline progress with rich progress bar."""
+    with Progress() as progress:
+        task = progress.add_task("Pipeline Progress", total=total_steps)
+        
+        for step in range(total_steps):
+            # Run step
+            result = run_step(step + 1)
+            
+            # Update progress
+            progress.update(task, advance=1)
+            
+            if result != 0:
+                progress.print(f"Step {step + 1} failed")
+                break
+```
+description:
+globs:
+alwaysApply: false
+---

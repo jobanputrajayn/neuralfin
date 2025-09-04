@@ -1,0 +1,81 @@
+---
+alwaysApply: true
+description: Project overview and main entry points for the JAX GPT Stock Predictor system
+---
+
+# JAX GPT Stock Predictor - Project Overview
+
+This is a comprehensive machine learning system for stock market prediction using JAX and GPT-style models. The project runs in a podman container named `thirsty_allen` with working directory `/mnt/d/collab/hyper`.
+
+## Main Entry Points
+
+### Complete Pipeline
+[run_complete_pipeline.py](mdc:run_complete_pipeline.py) - Main orchestration script that runs the complete 6-step pipeline with **subset parameters for development**:
+1. Hyperparameter Tuning (subset parameters)
+2. Extended Training  
+3. Results Analysis
+4. Final Model Training
+5. Backtesting
+6. Signal Generation
+
+**🚨 Development vs Production:**
+- **Development**: Use `run_complete_pipeline.py` (Python version, subset parameters, fast iteration)
+- **Development (Shell)**: Use `run_complete_pipeline_subset.sh` (Shell version, subset parameters)
+- **Production**: Use `run_complete_pipeline.sh` (Full parameters, complete training)
+
+**📋 Subset Parameters (Development):**
+- Ticker count: 2 (instead of full dataset)
+- Random trials: 1 (instead of 10+)
+- Bayesian trials: 1 (instead of 10+)
+- Fine-tune trials: 1 (instead of 10+)
+- Epochs per trial: 2 (instead of 50+)
+- Data period: 1y (instead of 5y+)
+
+### Individual Components
+[src/scripts/main.py](mdc:src/scripts/main.py) - Main entry point for individual commands:
+- `train` - Run main training pipeline
+- `hyperparameter-tune` - Run hyperparameter optimization
+
+### Alternative Entry Points
+[run_hyperparameter_tuning.py](mdc:run_hyperparameter_tuning.py) - Standalone hyperparameter tuning
+[run_extended_training.py](mdc:run_extended_training.py) - Extended training with cross-validation
+[run_final_training.py](mdc:run_final_training.py) - Final model training
+[run_backtesting.py](mdc:run_backtesting.py) - Backtesting pipeline
+
+## Project Structure
+
+### Core Source Code (`src/`)
+- `src/scripts/` - Main execution scripts and training pipeline
+- `src/models/` - Model implementations (GPT classifier, backtesting)
+- `src/data/` - Data processing and sequence generation
+- `src/training/` - Training functions and checkpointing
+- `src/hyperparameter_tuning/` - Optimization algorithms
+- `src/config/` - Configuration management
+- `src/utils/` - Utility functions (GPU utils, system utils)
+
+### Results and Outputs
+- `hyperparameter_tuning_results/` - Hyperparameter optimization results
+- `extended_training_results/` - Extended training with cross-validation
+- `final_model/` - Final trained model
+- `backtesting_results/` - Backtesting performance metrics
+- `analysis_plots/` - Generated analysis visualizations
+
+### Configuration and Documentation
+- [requirements.txt](mdc:requirements.txt) - Python dependencies
+- [requirements-gpu.txt](mdc:requirements-gpu.txt) - GPU-specific requirements
+- [HYPERPARAMETER_STRATEGY.md](mdc:HYPERPARAMETER_STRATEGY.md) - Optimization strategy
+- [BACKTESTING_README.md](mdc:BACKTESTING_README.md) - Backtesting documentation
+- [PIPELINE_COORDINATION_ANALYSIS.md](mdc:PIPELINE_COORDINATION_ANALYSIS.md) - Pipeline analysis
+
+## Key Technologies
+- **JAX** - Core ML framework with GPU acceleration
+- **Optuna** - Hyperparameter optimization
+- **YFinance** - Stock data fetching
+- **TensorBoard** - Training monitoring
+- **Backtesting** - Performance evaluation
+
+## Container Environment
+All commands must be run inside the podman container:
+```bash
+podman exec -it thirsty_allen bash -c "cd /mnt/d/collab/hyper && [command]"
+```

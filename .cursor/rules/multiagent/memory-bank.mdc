@@ -1,0 +1,101 @@
+---
+description: When any Custom Mode is used follow this rule
+globs: 
+alwaysApply: false
+---
+# Cursor's Memory Bank (MCP Integration)
+
+I am Cursor, an expert software engineer. My memory is now managed centrally via a Model Context Protocol (MCP) server. This document explains how to interact with this server to store and retrieve project context, ensuring a persistent and accessible source of truth for all agents.
+
+## Memory Management with MCP
+
+All project memory is stored in the MCP server's SQLite database. Each piece of memory is identified by a `main_task_id` (to separate contexts for different Cursor instances or tasks/sessions) and a `key` (to categorize the type of memory).
+
+**Key Principles for Memory Management:**
+
+*   **Centralized Source of Truth:** The MCP server is the single, authoritative source for all project-related information. Agents must always consult it first.
+*   **Persistence:** All relevant context is retained across turns and sessions for a given `main_task_id`, allowing seamless resumption of work.
+*   **Structured Storage:** Memory is organized using descriptive keys, facilitating easy retrieval and understanding.
+*   **Atomic Updates:** Updates should be self-contained and reflect the most current state of the information.
+*   **Contextual Relevance:** Store only information that is relevant to the ongoing task or future project phases.
+
+## Core Memory Types and MCP Tool Usage
+
+The following are the core memory types, now accessible via the MCP server:
+
+### 1. `project-brief` (Key: `project-brief`)
+*   **Purpose:** Defines the core requirements, overarching goals, scope, and high-level success criteria of the entire project. This is the foundational document that guides all work.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="project-brief"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="project-brief"`, and the full project brief content. Updates should be infrequent and reflect major shifts in project direction.
+
+### 2. `product-context` (Key: `product-context`)
+*   **Purpose:** Explains the product's vision, problems it solves, target users, desired user experience, business value, and non-functional requirements (e.g., performance, scalability, security).
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="product-context"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="product-context"`, and the product context content. Update when product requirements or priorities change.
+
+### 3. `system-patterns` (Key: `system-patterns`)
+*   **Purpose:** Describes the system architecture, established design patterns (e.g., MVC, Microservices), common code structures, inter-component communication mechanisms, and architectural guidelines that must be followed across the codebase.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="system-patterns"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="system-patterns"`, and the system patterns content. This key should be updated when architectural decisions are made or existing patterns evolve.
+
+### 4. `tech-context` (Key: `tech-context`)
+*   **Purpose:** Details the specific technologies used (e.g., Python 3.9, React 18, PostgreSQL), development environment setup, key libraries, APIs, technical constraints, infrastructure details, and external dependencies.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="tech-context"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="tech-context"`, and the tech context content. Update for technology stack changes, new library adoptions, or significant environment shifts.
+
+### 5. `design-decisions` (Key: `design-decisions`)
+*   **Purpose:** Records significant design decisions made during the project, including the problem addressed, alternatives considered, rationale for the chosen solution, and potential implications. This acts as an architectural decision record (ADR).
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="design-decisions"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="design-decisions"`, and the design decision content. Each significant decision should ideally be a separate entry or clearly delineated within this key.
+
+### 6. `active-context` (Key: `active-context`)
+*   **Purpose:** The most frequently updated key. It tracks the current work focus, immediate task instructions, recent changes, critical findings, next steps, active decisions/considerations, and a high-level summary of progress for the *current* main task.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="active-context"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="active-context"`, and the active context content. This should be updated by any agent making significant progress or changing the current task state.
+
+### 7. `progress` (Key: `progress`)
+*   **Purpose:** Provides a detailed log of completed work, what remains to be built, current development status, known issues, and any workarounds. More granular than `active-context` for tracking historical progress.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="progress"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="progress"`, and the progress updates. Append new progress updates rather than overwriting if a history is desired.
+
+### 8. `action-items` (Key: `action-items`)
+*   **Purpose:** A running list of specific, actionable tasks that need to be completed, often generated from reviews, discussions, or identified gaps. Each item should be clear, concise, and assignable.
+*   **Usage:**
+    *   **Retrieve:** Use `get_memory` with `main_task_id` and `key="action-items"`.
+    *   **Store/Update:** Use `store_memory` with `main_task_id`, `key="action-items"`, and the updated list of action items (e.g., adding new items, marking items complete).
+
+## Additional Memory Categories (Custom Keys)
+
+For more granular or specific context, agents can define and use additional `key`s when employing `store_memory`. These should be descriptive and follow a consistent naming convention. For example:
+
+*   **`feature-X-plan-details`:** For very detailed, multi-step plans for specific features.
+*   **`bug-fix-Y-analysis`:** For detailed root cause analysis and proposed solutions for a specific bug.
+*   **`api-spec-users`:** For API documentation relevant to user management, including endpoints, request/response formats.
+*   **`test-results-module-Z`:** For detailed outputs of test runs for a particular module.
+*   **`code-review-feedback-PR123`:** For comprehensive feedback on a specific pull request.
+*   **`meeting-notes-date`:** For summaries of important discussions or decisions from meetings.
+
+**Always ensure that `main_task_id` is consistently used across all memory operations for a given task or Cursor instance.** This is crucial for maintaining context integrity.
+
+## Workflows and Documentation Updates
+
+All agents (Orchestrator, Planner, Engineer, Reviewer) are now explicitly configured to use `store_memory` and `get_memory` within their workflows to manage project context. When updating memory, always use `store_memory` with the appropriate `main_task_id` and a precise `key` to accurately reflect changes and new information. Before making any significant decisions, starting new sub-tasks, or providing feedback, *always* use `get_memory` to retrieve the most up-to-date and relevant context from all pertinent keys.
+
+**Best Practices for Memory Interaction:**
+
+*   **Read Before Write:** Always retrieve existing memory (using `get_memory`) before attempting to update it, especially for complex or frequently changing keys like `active-context` or `progress`. This prevents overwriting critical information.
+*   **Descriptive Keys:** Choose keys that are highly descriptive of the content they hold. Avoid generic names.
+*   **Granularity:** Store information at an appropriate level of granularity. Use core keys for high-level summaries and custom keys for deep dives.
+*   **Cross-Referencing:** In `active-context` or other summary keys, include references to more detailed custom keys where relevant information is stored (e.g., "Detailed plan can be found under `feature-X-plan-details`").
+*   **Regular Updates:** Agents should proactively update the memory bank after completing sub-tasks, making key decisions, identifying new information, or encountering blockers. The fresher the memory, the more effective the agents.
+*   **Error Handling:** Assume that memory operations can fail gracefully and consider how to proceed in such cases (e.g., report to Orchestrator).
+
+REMEMBER: The MCP server is your central source of truth for all project memory. Maintain it with precision, clarity, and comprehensive detail, as your effectiveness and the overall project's success depend entirely on its accuracy and completeness.
+

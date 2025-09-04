@@ -1,0 +1,118 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data and Cache Directories
+alpha_vantage_cache/
+data_cache/
+news_cache/
+polygon_news_data/
+backups/
+*.pkl
+*.json
+*.db
+*.sqlite
+*.sqlite3
+
+# Model and Training Results
+final_model/
+extended_training_results/
+hyperparameter_tuning_results/
+backtesting_results/
+tensorboard_logs/
+optuna_study.db
+*.ckpt
+*.pth
+*.h5
+*.hdf5
+
+# Logs and Temporary Files
+*.log
+*.tmp
+*.temp
+logs/
+temp/
+tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# API Keys and Secrets
+*_key.py
+*_secret.py
+.env.local
+.env.production
+secrets.json
+config.json
+
+# Personal Scripts and Paths
+archive_to_google_drive.ps1
+sync_script.ps1
+split_download_commands.txt
+
+# Analysis and Output
+analysis_plots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+
+# Test and Coverage
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation builds
+docs/_build/
+site/
